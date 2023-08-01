@@ -24,7 +24,7 @@
 #include <fcntl.h>
 #include <termios.h>
 
-#define VERSION "rev1"
+#define VERSION "rev2"
 
 static const char *path = "/dev/ttyUSB0";
 
@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
 	cfmakeraw(&ts);
 	if (cfsetspeed(&ts, B38400)) goto error;
 	ts.c_cc[VMIN] = 0;
-	ts.c_cc[VTIME] = 3; // 300ms read timeout
+	ts.c_cc[VTIME] = 1; // 100ms read timeout
 	if (tcsetattr(fd, TCSANOW, &ts)) goto error;
 	if (tcflush(fd, TCIOFLUSH)) goto error;
 	FILE *f = fdopen(fd, "r+");
@@ -77,15 +77,11 @@ int main(int argc, char *argv[]) {
 			printf("\rQuit!\n");
 			break;
 		}
-		if (!strcmp(buf, "\n")) continue; // Empty command
 		if (!fwrite(buf, len, 1, f)) goto error;
 		usleep(len * 260); // tcdrain() is unreliable
 		if (tcdrain(fd)) goto error;
 		clearerr(f); // Clear EOF
-		while ((len = getline(&buf, &size, f)) != -1) {
-			fwrite(buf, len, 1, stdout);
-			if (!strcmp(buf, "OK\n") || !strcmp(buf, "ERROR\n")) break;
-		}
+		while ((len = getline(&buf, &size, f)) != -1) fwrite(buf, len, 1, stdout);
 	}
 	free(buf);
 	fclose(f);
