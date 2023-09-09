@@ -22,7 +22,7 @@
 #include <err.h>
 #include "common.h"
 
-#define VERSION "rev1"
+#define VERSION "rev2"
 
 #define CMD_PROBE  0
 #define CMD_INFO   1
@@ -75,7 +75,7 @@ static int parseargs(int argc, char *argv[]) {
 	}
 	argc -= optind;
 	argv += optind;
-	if (!argc) return !force;
+	if (!argc) return !force || setwrp;
 	if (argc > 1) return 0;
 	filename = argv[0];
 	return 1;
