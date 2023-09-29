@@ -31,12 +31,9 @@
 #define CMD_UPDATE 4
 #define CMD_SETWRP 5
 
-#define RES_OK    0
-#define RES_ERROR 1
-
 static const char *path = "/dev/ttyUSB0";
 static const char *filename;
-static int force, boot, setwrp;
+static int force, boot, wrp;
 
 static int parseargs(int argc, char *argv[]) {
 	int opt;
@@ -55,13 +52,13 @@ static int parseargs(int argc, char *argv[]) {
 				if (optarg[1]) goto error;
 				switch (optarg[0]) {
 					case '0':
-						setwrp = 0x33;
+						wrp = 0x33;
 						break;
 					case '1':
-						setwrp = 0x44;
+						wrp = 0x44;
 						break;
 					case '2':
-						setwrp = 0x55;
+						wrp = 0x55;
 						break;
 					default:
 						goto error;
@@ -75,7 +72,7 @@ static int parseargs(int argc, char *argv[]) {
 	}
 	argc -= optind;
 	argv += optind;
-	if (!argc) return !force || setwrp;
+	if (!argc) return !force || wrp;
 	if (argc > 1) return 0;
 	filename = argv[0];
 	return 1;
@@ -90,7 +87,7 @@ static void checkres(int res, int val, const char *msg) {
 }
 
 static void recvack(int fd, const char *msg) {
-	checkres(recvval(fd), RES_OK, msg);
+	checkres(recvval(fd), 0, msg);
 }
 
 static size_t maxlen(size_t pos, size_t size) {
@@ -129,7 +126,7 @@ int main(int argc, char *argv[]) {
 		else printf("%3c\r", "-\\|/"[i & 3]);
 		fflush(stdout);
 		sendval(fd, CMD_PROBE);
-		if (recvval(fd) == RES_OK) break;
+		if (!recvval(fd)) break;
 	}
 	if (filename) {
 		if (boot) {
@@ -157,10 +154,10 @@ int main(int argc, char *argv[]) {
 		}
 		printf("Done!\n");
 	}
-	if (setwrp) {
+	if (wrp) {
 		printf("Setting write protection...\n");
 		sendval(fd, CMD_SETWRP);
-		sendval(fd, setwrp);
+		sendval(fd, wrp);
 		recvack(fd, "Operation failed");
 		printf("Done!\n");
 	} else if (!filename && !force) {

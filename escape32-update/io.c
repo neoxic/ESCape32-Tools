@@ -38,7 +38,7 @@ error:
 	err(1, "%s", path);
 }
 
-int recv(int fd, uint8_t *buf, int len) {
+int recvbuf(int fd, uint8_t *buf, int len) {
 	while (len) {
 		int res = read(fd, buf, len);
 		if (res == -1) err(1, 0);
@@ -49,7 +49,7 @@ int recv(int fd, uint8_t *buf, int len) {
 	return 1;
 }
 
-void send(int fd, const uint8_t *buf, int len) {
+void sendbuf(int fd, const uint8_t *buf, int len) {
 	while (len) {
 		int res = write(fd, buf, len > 32 ? 32 : len);
 		if (res == -1) err(1, 0);
@@ -62,12 +62,12 @@ void send(int fd, const uint8_t *buf, int len) {
 
 int recvval(int fd) {
 	uint8_t buf[2];
-	return recv(fd, buf, 2) && (buf[0] ^ buf[1]) == 0xff ? buf[0] : -1;
+	return recvbuf(fd, buf, 2) && (buf[0] ^ buf[1]) == 0xff ? buf[0] : -1;
 }
 
 void sendval(int fd, int val) {
 	uint8_t buf[2] = {val, ~val};
-	send(fd, buf, 2);
+	sendbuf(fd, buf, 2);
 }
 
 int recvdata(int fd, uint8_t *buf) {
@@ -75,12 +75,12 @@ int recvdata(int fd, uint8_t *buf) {
 	if (cnt == -1) return -1;
 	int len = (cnt + 1) << 2;
 	uint32_t crc;
-	return recv(fd, buf, len) && recv(fd, (uint8_t *)&crc, 4) && crc32(buf, len) == crc ? len : -1;
+	return recvbuf(fd, buf, len) && recvbuf(fd, (uint8_t *)&crc, 4) && crc32(buf, len) == crc ? len : -1;
 }
 
 void senddata(int fd, const uint8_t *buf, int len) {
 	uint32_t crc = crc32(buf, len);
 	sendval(fd, (len >> 2) - 1);
-	send(fd, buf, len);
-	send(fd, (uint8_t *)&crc, 4);
+	sendbuf(fd, buf, len);
+	sendbuf(fd, (uint8_t *)&crc, 4);
 }

@@ -20,8 +20,8 @@
 #include <stdint.h>
 
 int openserial(const char *path);
-int recv(int fd, uint8_t *buf, int len);
-void send(int fd, const uint8_t *buf, int len);
+int recvbuf(int fd, uint8_t *buf, int len);
+void sendbuf(int fd, const uint8_t *buf, int len);
 int recvval(int fd);
 void sendval(int fd, int val);
 int recvdata(int fd, uint8_t *buf);
