@@ -22,7 +22,7 @@
 #include <err.h>
 #include "common.h"
 
-#define VERSION "rev2"
+#define VERSION "rev3"
 
 #define CMD_PROBE  0
 #define CMD_INFO   1
@@ -105,20 +105,11 @@ int main(int argc, char *argv[]) {
 			"  -d <path>   Override path to serial device\n"
 			"  -f          Force update\n"
 			"  -B          Update bootloader\n"
-			"  -P <level>  Set write protection (0-off, 1-bootloader, 2-full)\n"
-			"ESC info is printed when no operation specified\n",
+			"  -P <level>  Set write protection (0-off, 1-bootloader, 2-full)\n",
 			argv[0]);
 		return 1;
 	}
 	printf("ESCape32 Update Utility " VERSION "\n");
-	uint8_t buf[61440] = {0xff};
-	size_t size = 0;
-	if (filename) {
-		FILE *f = fopen(filename, "r");
-		if (!f || (!(size = fread(buf, 1, sizeof buf, f)) && ferror(f))) err(1, "%s", filename);
-		fclose(f);
-		if (!(size = (size + 3) & ~3)) errx(1, "%s: Empty data", filename);
-	}
 	int fd = openserial(path);
 	printf("Probing bootloader...\n");
 	for (int i = 0; !force || i < 20; ++i) {
@@ -128,7 +119,26 @@ int main(int argc, char *argv[]) {
 		sendval(fd, CMD_PROBE);
 		if (!recvval(fd)) break;
 	}
+	if (!force) {
+		uint8_t buf[1024];
+		printf("Fetching info...\n");
+		sendval(fd, CMD_INFO);
+		checkres(recvdata(fd, buf), 32, "Error reading data");
+		printf("Bootloader revision %d\n", buf[0]);
+		sendval(fd, CMD_READ);
+		sendval(fd, 0); // First block
+		sendval(fd, 4); // (4+1)*4=20 bytes
+		checkres(recvdata(fd, buf), 20, "Error reading data");
+		if (*(uint16_t *)buf == 0x32ea) printf("Firmware revision %d [%s]\n", buf[2], buf + 4);
+		else printf("Firmware not installed!\n");
+	}
 	if (filename) {
+		uint8_t buf[61440] = {0xff};
+		size_t size = 0;
+		FILE *f = fopen(filename, "r");
+		if (!f || (!(size = fread(buf, 1, sizeof buf, f)) && ferror(f))) err(1, "%s", filename);
+		fclose(f);
+		if (!(size = (size + 3) & ~3)) errx(1, "%s: Empty data", filename);
 		if (boot) {
 			if (size > 4096) errx(1, "%s: Image too big", filename);
 			if (!(size & 1023) && size != 4096) size += 4; // Ensure last block marker
@@ -160,17 +170,6 @@ int main(int argc, char *argv[]) {
 		sendval(fd, wrp);
 		recvack(fd, "Operation failed");
 		printf("Done!\n");
-	} else if (!filename && !force) {
-		printf("Fetching ESCape32 info...\n");
-		sendval(fd, CMD_INFO);
-		checkres(recvdata(fd, buf), 32, "Error reading data");
-		printf("Bootloader revision %d\n", buf[0]);
-		sendval(fd, CMD_READ);
-		sendval(fd, 0); // First block
-		sendval(fd, 4); // (4+1)*4=20 bytes
-		checkres(recvdata(fd, buf), 20, "Error reading data");
-		if (*(uint16_t *)buf == 0x32ea) printf("Firmware revision %d [%s]\n", buf[2], buf + 4);
-		else printf("Firmware not installed!\n");
 	}
 	close(fd);
 	return 0;
