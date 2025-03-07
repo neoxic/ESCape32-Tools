@@ -22,7 +22,7 @@
 #include <err.h>
 #include "common.h"
 
-#define VERSION "rev3"
+#define VERSION "rev4"
 
 #define CMD_PROBE  0
 #define CMD_INFO   1
@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
 		else printf("Firmware not installed!\n");
 	}
 	if (filename) {
-		uint8_t buf[61440] = {0xff};
+		uint8_t buf[131072] = {0xff};
 		size_t size = 0;
 		FILE *f = fopen(filename, "r");
 		if (!f || (!(size = fread(buf, 1, sizeof buf, f)) && ferror(f))) err(1, "%s", filename);
