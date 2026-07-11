@@ -22,7 +22,7 @@
 #include <err.h>
 #include "common.h"
 
-#define VERSION "rev4"
+#define VERSION "rev5"
 
 #define CMD_PROBE  0
 #define CMD_INFO   1
@@ -90,10 +90,8 @@ static void recvack(int fd, const char *msg) {
 	checkres(recvval(fd), 0, msg);
 }
 
-static size_t maxlen(size_t pos, size_t size) {
-	size_t len = size - pos;
-	if (len > 1024) len = 1024;
-	return len;
+static inline int min(int a, int b) {
+	return a < b ? a : b;
 }
 
 int main(int argc, char *argv[]) {
@@ -133,32 +131,44 @@ int main(int argc, char *argv[]) {
 		else printf("Firmware not installed!\n");
 	}
 	if (filename) {
-		uint8_t buf[131072] = {0xff};
-		size_t size = 0;
+		uint8_t buf[131072];
+		int len = 0;
 		FILE *f = fopen(filename, "r");
-		if (!f || (!(size = fread(buf, 1, sizeof buf, f)) && ferror(f))) err(1, "%s", filename);
+		if (!f || (!(len = fread(memset(buf, 0xff, sizeof buf), 1, sizeof buf, f)) && ferror(f))) err(1, "%s", filename);
 		fclose(f);
-		if (!(size = (size + 3) & ~3)) errx(1, "%s: Empty data", filename);
+		if (!(len = (len + 3) & ~3)) errx(1, "%s: Empty data", filename);
 		if (boot) {
-			if (size > 4096) errx(1, "%s: Image too big", filename);
-			if (!(size & 1023) && size != 4096) size += 4; // Ensure last block marker
+			if (len > 4096) errx(1, "%s: Image too big", filename);
+			if (!(len & 1023) && len != 4096) len += 4; // Ensure last block marker
 			printf("Updating bootloader...\n");
 			sendval(fd, CMD_UPDATE);
-			for (size_t pos = 0; pos < size; pos += 1024) {
-				printf("%4zu%%\r", pos * 100 / size);
+			for (int pos = 0; pos < len; pos += 1024) {
+				printf("%4d%%\r", pos * 100 / len);
 				fflush(stdout);
-				senddata(fd, buf + pos, maxlen(pos, size));
+				senddata(fd, buf + pos, min(len - pos, 1024));
 				recvack(fd, "Error writing data");
 			}
 			recvack(fd, "Update failed"); // Wait for ACK after reboot
 		} else {
 			printf("Updating firmware...\n");
-			for (size_t pos = 0; pos < size; pos += 1024) {
-				printf("%4zu%%\r", pos * 100 / size);
+			int n = (len + 1023) >> 10;
+			if (n > 2) { // Erase signature first
+				static const uint8_t dummy[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+				for (int num = 0; num < 2; ++num) {
+					sendval(fd, CMD_WRITE);
+					sendval(fd, num);
+					senddata(fd, dummy, sizeof dummy);
+					recvack(fd, "Error writing data");
+				}
+			}
+			for (int i = 0; i < n; ++i) { // Write signature last
+				int num = n > 2 ? (i + 2) % n : i;
+				int pos = num << 10;
+				printf("%4d%%\r", i * 100 / n);
 				fflush(stdout);
 				sendval(fd, CMD_WRITE);
-				sendval(fd, pos / 1024); // Block number
-				senddata(fd, buf + pos, maxlen(pos, size));
+				sendval(fd, num);
+				senddata(fd, buf + pos, min(len - pos, 1024));
 				recvack(fd, "Error writing data");
 			}
 		}
